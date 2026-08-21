@@ -1,0 +1,13 @@
+services:
+  floci:
+    image: floci/floci:latest
+    container_name: floci
+    ports:
+      - "4566:4566"
+    env_file:
+      - configs/course.env
+    environment:
+      FLOCI_STORAGE_MODE: ${FLOCI_STORAGE_MODE}
+      FLOCI_STORAGE_PERSISTENT_PATH: ${FLOCI_STORAGE_PERSISTENT_PATH}
+    volumes:
+      - ${FLOCI_STORAGE_HOST_PERSISTENT_PATH}:/app/data
