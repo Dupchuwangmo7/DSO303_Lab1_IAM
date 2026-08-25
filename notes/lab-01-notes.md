@@ -1,84 +1,526 @@
-# Lab 01 — IAM Practical Report
 
-## Student Information
+# DSO303 Lab 1 — AWS IAM Policy Testing with Floci
 
-- **Student Name:** Dupchu Wangmo
-- **Student Number:** 02230282
-- **Lab:** Lab 01 — IAM
-- **Environment:** Floci AWS-compatible local environment
-- **Date:** 21 August 2026
+**Student Name:** Dupchu Wangmo  
+**Student Number:** 02230282  
+**Course:** DSO303  
+**Lab:** Lab 1 — IAM  
+
+
 
 ## 1. Introduction
 
-This practical focused on understanding Identity and Access Management (IAM) concepts using the Floci AWS-compatible environment. The practical involved creating and configuring IAM users, groups and policies, assigning permissions through group membership, configuring AWS CLI profiles, and testing the resulting permissions against an S3 test bucket.
+This practical involved learning and implementing AWS Identity and Access Management (IAM) concepts through the use of Floci local AWS-compatible infrastructure.
 
-The main objective of my work was to demonstrate that permissions can be assigned to a group rather than directly to an individual user. I also tested the difference between permissions that are allowed and permissions that are not granted by an IAM policy.
+The key objectives of the practical included:
 
-## 2. Objectives
+- Setting up Floci AWS infrastructure with Docker.
+- Configuring AWS CLI to connect to Floci.
+- Creating an IAM group and IAM user.
+- Adding IAM user to the IAM group.
+- Creating a customer-managed IAM policy.
+- Attaching policy to the IAM group.
+- Checking whether user gets permissions via group.
+- Performing both allowed and denied S3 operations.
+- Creating an S3 bucket to perform the tests.
+- Validating IAM permissions using AWS IAM policy simulation.
+- Keeping practical documentation through screen captures and Git.
 
-The objectives of the practical work completed were:
+The practical was performed on macOS operating system using Docker, Floci, and AWS CLI.
 
-- Create and configure an IAM user.
-- Create an IAM group.
-- Add the IAM user to the group.
-- Create and attach a read-only S3 policy to the group.
-- Verify the relationship between the user, group and policy.
-- Configure an AWS CLI profile for the IAM user.
-- Verify the authenticated IAM identity using AWS STS.
-- Create and verify an S3 test bucket.
-- Test the user's ability to list objects in the bucket.
-- Test whether `s3:PutObject` is allowed.
-- Use IAM policy simulation to verify the effective permission.
-- Investigate unexpected S3 behaviour in the Floci environment.
 
-## 3. Environment
 
-The practical was performed on a MacBook using the AWS CLI and the Floci local AWS-compatible environment.
+# 2. Environment Setup
 
-The AWS CLI profiles used during the practical were:
+## 2.1 Tools Used
 
-- `floci`
-- `lab-developer`
+The following tools were used during the practical:
 
-The `floci` profile was used for administrative IAM operations, while `lab-developer` was used to test the permissions of the IAM user.
+- macOS
+- Docker Desktop
+- Docker Compose
+- Floci AWS
+- AWS CLI
+- Git
+- GitHub
 
-## 4. IAM Group and User Structure
+The Floci server used during the practical was:
 
-The IAM group used for the practical was:
+- **Floci image:** `floci/floci:latest`
+- **Floci server version:** `1.5.34`
+- **AWS region:** `us-east-1`
+- **AWS account ID:** `000000000000`
+- **Floci endpoint:** `http://localhost:4566`
 
-- `developers`
 
-The IAM user was:
 
-- `lab-developer`
+## 2.2 Floci Storage Configuration
 
-The final relationship was:
-
-```
-developers
-│
-└── lab-developer
-```
-
-The `DeveloperReadOnly` managed policy was attached to the `developers` group.
-
-Therefore, the user inherited the permissions from the group rather than having a policy attached directly to the user.
-
-The relationship was verified using IAM commands.
-
-## 5. DeveloperReadOnly Policy
-
-The `DeveloperReadOnly` policy was inspected using:
+The Floci storage environment variables were configured as follows:
 
 ```bash
-aws iam get-policy --policy-arn arn:aws:iam::000000000000:policy/DeveloperReadOnly --profile floci
+FLOCI_STORAGE_MODE=hybrid
+FLOCI_STORAGE_PERSISTENT_PATH=/app/data
+FLOCI_STORAGE_HOST_PERSISTENT_PATH=/Users/dupchuuw/floci-data
+````
+
+The configuration was loaded using:
+
+```bash
+source configs/course.env
 ```
 
-The policy was found to use version:
+The values were verified using:
 
-- `v1`
+```bash
+echo "$FLOCI_STORAGE_MODE"
+echo "$FLOCI_STORAGE_PERSISTENT_PATH"
+echo "$FLOCI_STORAGE_HOST_PERSISTENT_PATH"
+```
 
-The actual policy document was then inspected using:
+The output confirmed:
+
+```text
+hybrid
+/app/data
+/Users/dupchuuw/floci-data
+```
+
+### Screenshot Evidence
+
+> **Screenshot 1 — Floci storage environment variables**
+
+![alt text](../screenshots/S01-floci-running.png)
+
+# 3. Docker Compose Configuration
+
+Initially, Docker Compose produced an error because the Floci storage environment variables were not available to Docker Compose.
+
+The error was:
+
+```text
+invalid spec: :/app/data: empty section between colons
+```
+
+This occurred because the following variables were empty:
+
+```text
+FLOCI_STORAGE_MODE
+FLOCI_STORAGE_PERSISTENT_PATH
+FLOCI_STORAGE_HOST_PERSISTENT_PATH
+```
+
+The variables were exported:
+
+```bash
+export FLOCI_STORAGE_MODE=hybrid
+export FLOCI_STORAGE_PERSISTENT_PATH=/app/data
+export FLOCI_STORAGE_HOST_PERSISTENT_PATH="$HOME/floci-data"
+```
+
+After exporting the variables, the Docker Compose configuration was successfully validated.
+
+The command used was:
+
+```bash
+docker compose config
+```
+
+The resulting configuration showed:
+
+```text
+source: /Users/dupchuuw/floci-data
+target: /app/data
+```
+
+and port `4566` was mapped correctly.
+
+### Screenshot Evidence
+
+> **Screenshot 2 — Successful Docker Compose configuration**
+
+![alt text](../screenshots/S02-docker-compose-config.png)
+
+# 4. Starting Floci
+
+The Floci container was started using Docker Compose.
+
+```bash
+docker compose up -d
+```
+
+An initial container-name conflict occurred because a container named `floci` already existed.
+
+The error was:
+
+```text
+Conflict. The container name "/floci" is already in use
+```
+
+After resolving the existing container, Floci was successfully started.
+
+The container was verified using:
+
+```bash
+docker ps
+```
+
+The output showed the Floci container running and healthy:
+
+```text
+floci/floci:latest
+Up ... (healthy)
+0.0.0.0:4566->4566/tcp
+```
+
+### Screenshot Evidence
+
+![alt text](../screenshots/S03-floci-doctor-healthy.png)
+
+
+# 5. Floci Environment Verification
+
+The Floci environment was checked using:
+
+```bash
+floci doctor
+```
+
+The diagnostic confirmed:
+
+* Docker installed.
+* Docker daemon reachable.
+* Docker socket accessible.
+* Correct Docker version.
+* Port `4566` available/in use as expected.
+* Floci image available.
+* Floci version `1.5.34`.
+* Floci container running.
+* Floci endpoint reachable.
+* AWS CLI endpoint configured.
+
+The final diagnostic reported:
+
+```text
+0 issue(s) found (0 fail, 1 warn)
+```
+
+The remaining warning concerned the S3 path-style configuration:
+
+```text
+~/.aws/config missing 's3.addressing_style = path'
+```
+
+This warning did not prevent the IAM and S3 operations used in the practical from working.
+
+### Screenshot Evidence
+
+> **Screenshot 4 — Floci Doctor verification**
+
+![alt text](../screenshots/S05-floci-aws-profile.png)
+
+# 6. AWS CLI Configuration
+
+The AWS CLI was configured to communicate with the local Floci environment.
+
+The endpoint was configured as:
+
+```bash
+export AWS_ENDPOINT_URL=http://localhost:4566
+```
+
+The default region was:
+
+```bash
+export AWS_DEFAULT_REGION=us-east-1
+```
+
+The Floci AWS CLI profile was configured with test credentials.
+
+The AWS CLI configuration was checked using:
+
+```bash
+aws configure list --profile floci
+```
+
+The configuration showed:
+
+```text
+profile    : floci
+access_key : ****************test
+secret_key : ****************test
+region     : us-east-1
+```
+
+
+
+# 7. Verifying AWS Identity
+
+The AWS identity was checked using:
+
+```bash
+aws sts get-caller-identity --profile floci
+```
+
+The output was:
+
+```json
+{
+    "UserId": "000000000000",
+    "Account": "000000000000",
+    "Arn": "arn:aws:iam::000000000000:root"
+}
+```
+
+This confirmed that the AWS CLI was communicating with the Floci environment.
+
+### Screenshot Evidence
+
+> **Screenshot 5 — AWS STS caller identity**
+
+![alt text](../screenshots/S05-floci-aws-profile.png)
+
+# 8. Initial IAM State
+
+Before creating the IAM resources, the existing users and groups were checked.
+
+The command:
+
+```bash
+aws iam list-users --profile floci
+```
+
+initially returned:
+
+```json
+{
+    "Users": []
+}
+```
+
+The command:
+
+```bash
+aws iam list-groups --profile floci
+```
+
+returned:
+
+```json
+{
+    "Groups": []
+}
+```
+
+This confirmed that the Floci IAM environment started without the required lab users and groups.
+
+### Screenshot Evidence
+
+> **Screenshot 6 — Initial IAM users and groups**
+
+![alt text](../screenshots/S09-iam-group-created.png)
+
+# 9. Creating the Developers Group
+
+The IAM group named `developers` was created using:
+
+```bash
+aws iam create-group --group-name developers --profile floci
+```
+
+The group was successfully created.
+
+The group was then verified using:
+
+```bash
+aws iam get-group --group-name developers --profile floci
+```
+
+The output confirmed:
+
+```text
+GroupName: developers
+GroupId: AGPA3QWB5NOPEVOIWY2Y
+Arn: arn:aws:iam::000000000000:group/developers
+```
+
+### Screenshot Evidence
+
+> **Screenshot 7 — Developers group created**
+
+![alt text](../screenshots/S10-create-developer.png)
+
+# 10. Creating the Lab Developer User
+
+The IAM user `lab-developer` was created using:
+
+```bash
+aws iam create-user --user-name lab-developer --profile floci
+```
+
+The user was successfully created.
+
+The user ARN was:
+
+```text
+arn:aws:iam::000000000000:user/lab-developer
+```
+
+The user was then added to the `developers` group:
+
+```bash
+aws iam add-user-to-group \
+  --user-name lab-developer \
+  --group-name developers \
+  --profile floci
+```
+
+The group membership was verified using:
+
+```bash
+aws iam get-group \
+  --group-name developers \
+  --profile floci
+```
+
+The output confirmed that:
+
+```text
+lab-developer
+```
+
+was a member of:
+
+```text
+developers
+```
+
+### Screenshot Evidence
+
+> **Screenshot 8 — User added to developers group**
+
+![alt text](../screenshots/S11-user-added-to-group.png)
+
+# 11. Creating the DeveloperReadOnly Policy
+
+A customer-managed policy named `DeveloperReadOnly` was created.
+
+The policy document was stored in:
+
+```text
+policies/developer-readonly.json
+```
+
+The policy contained:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListAllMyBuckets",
+        "s3:GetBucketLocation",
+        "s3:ListBucket"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+The policy allows the following S3 operations:
+
+| Permission             | Purpose                      |
+| ---------------------- | ---------------------------- |
+| `s3:ListAllMyBuckets`  | List available S3 buckets    |
+| `s3:GetBucketLocation` | Retrieve bucket location     |
+| `s3:ListBucket`        | List objects within a bucket |
+
+The policy does **not** grant:
+
+```text
+s3:PutObject
+```
+
+Therefore, object uploads should be denied for the `lab-developer` user.
+
+
+# 12. Creating the IAM Policy
+
+The policy was created using:
+
+```bash
+aws iam create-policy \
+  --policy-name DeveloperReadOnly \
+  --policy-document file://policies/developer-readonly.json \
+  --profile floci
+```
+
+The policy was successfully created with:
+
+```text
+PolicyName: DeveloperReadOnly
+PolicyId: ANPAIKBI261XF335FUX3
+Arn: arn:aws:iam::000000000000:policy/DeveloperReadOnly
+```
+
+The policy was verified using:
+
+```bash
+aws iam list-policies --scope Local --profile floci
+```
+
+
+# 13. Attaching the Policy to the Developers Group
+
+The policy was attached to the `developers` group using:
+
+```bash
+aws iam attach-group-policy \
+  --group-name developers \
+  --policy-arn arn:aws:iam::000000000000:policy/DeveloperReadOnly \
+  --profile floci
+```
+
+The attachment was verified using:
+
+```bash
+aws iam list-attached-group-policies \
+  --group-name developers \
+  --profile floci
+```
+
+The output showed:
+
+```text
+PolicyName: DeveloperReadOnly
+PolicyArn: arn:aws:iam::000000000000:policy/DeveloperReadOnly
+```
+
+This demonstrated that the policy was attached to the group rather than directly to the user.
+
+### Screenshot Evidence
+
+> **Screenshot 10 — DeveloperReadOnly attached to developers group**
+
+
+![alt text](../screenshots/S12-developer-readonly-policy.png)
+
+
+
+# 14. Verifying the Policy Document
+
+The policy metadata was checked using:
+
+```bash
+aws iam get-policy \
+  --policy-arn arn:aws:iam::000000000000:policy/DeveloperReadOnly \
+  --profile floci
+```
+
+The policy version was then retrieved using:
 
 ```bash
 aws iam get-policy-version \
@@ -87,35 +529,39 @@ aws iam get-policy-version \
   --profile floci
 ```
 
-The policy contained the following permissions:
+The returned policy confirmed that the allowed actions were:
 
-- `s3:ListAllMyBuckets`
-- `s3:GetBucketLocation`
-- `s3:ListBucket`
+```text
+s3:ListAllMyBuckets
+s3:GetBucketLocation
+s3:ListBucket
+```
 
-The policy did not contain:
+### Screenshot Evidence
 
-- `s3:PutObject`
+> **Screenshot 11 — DeveloperReadOnly policy permissions**
 
-Therefore, the policy was configured as a read/list-only policy.
+![alt text](../screenshots/S12-developer-readonly-policy.png)
 
-## 6. Verification of IAM Configuration
+# 15. Verifying No Direct User Policy
 
-The managed policy attached to the group was verified using:
+The user's directly attached policies were checked using:
 
 ```bash
-aws iam list-attached-group-policies \
-  --group-name developers \
+aws iam list-attached-user-policies \
+  --user-name lab-developer \
   --profile floci
 ```
 
-The result showed:
+The output was:
 
-```
-DeveloperReadOnly
+```json
+{
+    "AttachedPolicies": []
+}
 ```
 
-The user was also checked for direct policies:
+The inline policies were also checked:
 
 ```bash
 aws iam list-user-policies \
@@ -131,57 +577,122 @@ The result was:
 }
 ```
 
-This confirmed that the user had no inline policy attached directly.
+This confirmed that the permissions were inherited from the `developers` group.
 
-The user was also checked for directly attached managed policies:
+### Screenshot Evidence
+
+> **Screenshot 12 — No direct policies attached to lab-developer**
+
+![alt text](../screenshots/S12-developer-readonly-policy.png)
+
+# 16. IAM Policy Simulation
+
+IAM policy simulation was used to verify the effective permissions of the `lab-developer` user.
+
+The user's policy source ARN was:
+
+```text
+arn:aws:iam::000000000000:user/lab-developer
+```
+
+## 16.1 Testing ListAllMyBuckets
+
+The following command was used:
 
 ```bash
-aws iam list-attached-user-policies \
+aws iam simulate-principal-policy \
+  --policy-source-arn arn:aws:iam::000000000000:user/lab-developer \
+  --action-names s3:ListAllMyBuckets \
+  --profile floci
+```
+
+The result was:
+
+```text
+EvalDecision: allowed
+```
+
+Therefore:
+
+```text
+s3:ListAllMyBuckets = ALLOWED
+```
+
+
+## 16.2 Testing ListBucket
+
+The following command was used:
+
+```bash
+aws iam simulate-principal-policy \
+  --policy-source-arn arn:aws:iam::000000000000:user/lab-developer \
+  --action-names s3:ListBucket \
+  --profile floci
+```
+
+The result was:
+
+```text
+EvalDecision: allowed
+```
+
+Therefore:
+
+```text
+s3:ListBucket = ALLOWED
+```
+
+
+## 16.3 Testing PutObject
+
+The following command was used:
+
+```bash
+aws iam simulate-principal-policy \
+  --policy-source-arn arn:aws:iam::000000000000:user/lab-developer \
+  --action-names s3:PutObject \
+  --profile floci
+```
+
+The result was:
+
+```text
+EvalDecision: implicitDeny
+```
+
+Therefore:
+
+```text
+s3:PutObject = IMPLICIT DENY
+```
+
+This demonstrates that the `DeveloperReadOnly` policy provides read/list access but does not provide permission to upload objects.
+
+### Screenshot Evidence
+
+> **Screenshot 13 — IAM policy simulation showing allowed and denied actions**
+
+![alt text](../screenshots/S13-developer-readonly-created.png)
+
+# 17. Access Key Testing
+
+An access key was temporarily created for the `lab-developer` user.
+
+The command used was:
+
+```bash
+aws iam create-access-key \
   --user-name lab-developer \
   --profile floci
 ```
 
-The result was:
+The key was successfully created and shown as:
 
-```json
-{
-    "AttachedPolicies": []
-}
+```text
+Status: Active
 ```
 
-The group was also checked for inline policies:
-
-```bash
-aws iam list-group-policies \
-  --group-name developers \
-  --profile floci
-```
-
-The result was:
-
-```json
-{
-    "PolicyNames": []
-}
-```
-
-These checks confirmed that the `DeveloperReadOnly` group policy was the intended source of the user's read/list permissions.
-
-## 7. AWS CLI Developer Profile
-
-Initially, the `lab-developer` CLI profile was incorrectly using root credentials. The problem was identified using:
-
-```bash
-aws sts get-caller-identity --profile lab-developer
-```
-
-Initially, the result showed:
-
-```
-arn:aws:iam::000000000000:root
-```
-
-The IAM user was then checked for access keys:
+The key was verified using:
 
 ```bash
 aws iam list-access-keys \
@@ -189,7 +700,41 @@ aws iam list-access-keys \
   --profile floci
 ```
 
-The result was:
+The access key was then used to verify the identity:
+
+```bash
+aws sts get-caller-identity
+```
+
+The result identified the principal as:
+
+```text
+arn:aws:iam::000000000000:user/lab-developer
+```
+
+This confirmed that the AWS CLI was operating as the IAM user when the temporary credentials were active.
+
+> **Security Note:** Secret access keys should never be included in the final report, Git repository, screenshots, or public GitHub repository.
+
+### Screenshot Evidence
+
+> **Screenshot 14 — lab-developer identity verification**
+
+![alt text](../screenshots/S14-policy-attached-to-developers.png)
+
+# 18. Access Key Cleanup
+
+The temporary access key was later removed.
+
+The final verification:
+
+```bash
+aws iam list-access-keys \
+  --user-name lab-developer \
+  --profile floci
+```
+
+returned:
 
 ```json
 {
@@ -197,31 +742,23 @@ The result was:
 }
 ```
 
-This showed that the user had no access keys.
+This confirmed that there were no remaining access keys for the `lab-developer` user.
 
-A new access key was subsequently created for `lab-developer`, and the AWS CLI profile was configured with the new credentials.
+### Screenshot Evidence
 
-The identity was then successfully verified using:
+> **Screenshot 15 — Access key cleanup**
 
-```bash
-aws sts get-caller-identity --profile lab-developer
+![alt text](../screenshots/S15-group-vs-user-policy.png)
+
+# 19. Creating the S3 Test Bucket
+
+An S3 bucket named:
+
+```text
+usms-iam-test
 ```
 
-The final result was:
-
-```json
-{
-    "UserId": "000000000000",
-    "Account": "000000000000",
-    "Arn": "arn:aws:iam::000000000000:user/lab-developer"
-}
-```
-
-This confirmed that the AWS CLI was finally operating as the intended IAM user rather than the root identity.
-
-## 8. S3 Test Bucket
-
-A test S3 bucket was created using:
+was created using:
 
 ```bash
 aws s3api create-bucket \
@@ -229,12 +766,10 @@ aws s3api create-bucket \
   --profile floci
 ```
 
-The command returned:
+The result confirmed:
 
-```json
-{
-    "Location": "/usms-iam-test"
-}
+```text
+Location: /usms-iam-test
 ```
 
 The bucket was then verified using:
@@ -243,270 +778,377 @@ The bucket was then verified using:
 aws s3api list-buckets --profile floci
 ```
 
-The bucket appeared as:
+The output showed:
 
-```
+```text
 usms-iam-test
 ```
 
-The bucket was created specifically for testing IAM permissions.
+### Screenshot Evidence
 
-## 9. Test Object
+> **Screenshot 16 — S3 test bucket created**
 
-A small test file was created using:
+
+![alt text](../screenshots/S16-policy-permissions.png)
+
+# 20. Listing Objects in the S3 Bucket
+
+The bucket contents were checked using:
+
+```bash
+aws s3api list-objects-v2 \
+  --bucket usms-iam-test \
+  --profile floci
+```
+
+The result initially showed no objects:
+
+```json
+{
+    "RequestCharged": null,
+    "Prefix": ""
+}
+```
+
+This confirmed that the bucket was initially empty.
+
+### Screenshot Evidence
+
+> **Screenshot 17 — Empty S3 bucket**
+
+![alt text](../screenshots/S17-effective-permission-test.png)
+
+# 21. S3 Object Upload Test
+
+A test file was created:
 
 ```bash
 echo "IAM lab test" > /tmp/iam-test.txt
 ```
 
-The file was uploaded using the administrative `floci` profile:
+The file was uploaded using:
 
 ```bash
-aws s3 cp /tmp/iam-test.txt \
+aws s3 cp \
+  /tmp/iam-test.txt \
   s3://usms-iam-test/iam-test.txt \
   --profile floci
 ```
 
-The upload succeeded.
+The upload returned:
 
-The object was then verified using:
+```text
+upload: .../tmp/iam-test.txt to s3://usms-iam-test/iam-test.txt
+```
+
+This test was performed while using the root/administrative Floci credentials rather than the restricted `lab-developer` credentials.
+
+Therefore, this upload does **not** contradict the IAM simulation result showing that `lab-developer` has an implicit deny for `s3:PutObject`.
+
+The policy simulation is the evidence used to demonstrate the restricted user's permissions.
+
+### Screenshot Evidence
+
+> **Screenshot 18 — S3 object upload test**
+
+![alt text](../screenshots/S18-iam-allowed-denied-test.png)
+
+# 22. Floci Restart and IAM State Reset
+
+During the practical, the Floci container was stopped and later restarted.
+
+After the restart, the previously created IAM resources were no longer present.
+
+The following command:
 
 ```bash
-aws s3api head-object \
-  --bucket usms-iam-test \
-  --key iam-test.txt \
-  --profile floci
+aws iam list-groups --profile floci
 ```
 
-The object was successfully found and had a content length of 13 bytes.
+returned:
 
-## 10. Testing the Developer's List Permission
+```json
+{
+    "Groups": []
+}
+```
 
-The S3 list permission was tested using the actual `lab-developer` credentials:
+Similarly:
 
 ```bash
-aws s3api list-objects-v2 \
-  --bucket usms-iam-test \
-  --profile lab-developer
+aws iam list-users --profile floci
 ```
 
-The command successfully returned:
+returned:
 
+```json
+{
+    "Users": []
+}
 ```
-Key: iam-test.txt
-Size: 13
-StorageClass: STANDARD
-```
 
-This demonstrated that `lab-developer` could successfully list objects in the bucket.
+The `developers` group therefore had to be recreated.
 
-Therefore:
+This was an important troubleshooting observation because the IAM resources created before the Floci restart were not available after the environment reset.
 
-- `s3:ListBucket` = **Allowed**
 
-This was consistent with the `DeveloperReadOnly` policy.
+# 23. Recreating the IAM Resources
 
-## 11. Testing PutObject Permission
+After restarting Floci, the IAM resources were recreated.
 
-The next test attempted to upload an object using the `lab-developer` profile:
+## 23.1 Developers Group
 
 ```bash
-aws s3 cp /tmp/iam-test.txt \
-  s3://usms-iam-test/developer-test.txt \
-  --profile lab-developer
-```
-
-Unexpectedly, the upload succeeded.
-
-This was different from the expected IAM behaviour because the `DeveloperReadOnly` policy does not grant:
-
-- `s3:PutObject`
-
-The created object was confirmed using:
-
-```bash
-aws s3api head-object \
-  --bucket usms-iam-test \
-  --key developer-test.txt \
-  --profile lab-developer
-```
-
-The object existed successfully.
-
-## 12. Investigation of the Unexpected Upload
-
-Because the upload succeeded, I investigated the possible sources of the PutObject permission.
-
-The following checks were performed.
-
-**User inline policy**
-
-```bash
-aws iam list-user-policies \
-  --user-name lab-developer \
-  --profile floci
-```
-
-Result:
-
-```
-PolicyNames: []
-```
-
-**User managed policies**
-
-```bash
-aws iam list-attached-user-policies \
-  --user-name lab-developer \
-  --profile floci
-```
-
-Result:
-
-```
-AttachedPolicies: []
-```
-
-**Group inline policies**
-
-```bash
-aws iam list-group-policies \
+aws iam create-group \
   --group-name developers \
   --profile floci
 ```
 
-Result:
+The group was successfully recreated.
 
-```
-PolicyNames: []
-```
 
-**Bucket policy**
+
+## 23.2 Lab Developer User
 
 ```bash
-aws s3api get-bucket-policy \
-  --bucket usms-iam-test \
-  --profile floci
-```
-
-Result:
-
-```
-NoSuchBucketPolicy
-```
-
-Therefore, no bucket policy existed.
-
-## 13. IAM Policy Simulation
-
-To determine the actual IAM decision independently of the S3 data-plane behaviour, the `s3:PutObject` action was tested using IAM policy simulation.
-
-The following command was used:
-
-```bash
-aws iam simulate-principal-policy \
-  --policy-source-arn arn:aws:iam::000000000000:user/lab-developer \
-  --action-names s3:PutObject \
-  --resource-arns arn:aws:s3:::usms-iam-test/iam-test.txt \
-  --profile floci
-```
-
-The result was:
-
-```json
-{
-    "EvaluationResults": [
-        {
-            "EvalActionName": "s3:PutObject",
-            "EvalResourceName": "arn:aws:s3:::usms-iam-test/iam-test.txt",
-            "EvalDecision": "implicitDeny",
-            "MatchedStatements": [],
-            "MissingContextValues": []
-        }
-    ]
-}
-```
-
-The important result was:
-
-- `EvalDecision: implicitDeny`
-
-This confirms that the IAM policy evaluation did not grant `s3:PutObject` to `lab-developer`.
-
-## 14. Discussion
-
-The practical demonstrated an important difference between IAM policy evaluation and the behaviour of the local Floci S3 service.
-
-The IAM policy simulator returned:
-
-```
-implicitDeny
-```
-
-for `s3:PutObject`.
-
-This is consistent with the `DeveloperReadOnly` policy because the policy only grants:
-
-- `s3:ListAllMyBuckets`
-- `s3:GetBucketLocation`
-- `s3:ListBucket`
-
-However, the actual S3 upload was accepted by the local environment.
-
-The unexpected upload was therefore not used as evidence that the user had PutObject permission. Instead, the IAM policy simulator was used to establish the actual IAM authorization decision.
-
-This investigation also demonstrated the importance of checking the complete IAM configuration rather than assuming that a successful service request always means the corresponding IAM action has been granted.
-
-## 16. Problems Encountered and Solutions
-
-### Problem 1 — Developer profile authenticated as root
-
-Initially:
-
-```
-Arn: arn:aws:iam::000000000000:root
-```
-
-The problem was caused by the CLI profile using root credentials.
-
-**Solution:** A new access key was created for `lab-developer` and the AWS CLI profile was reconfigured.
-
-The identity then correctly became:
-
-```
-arn:aws:iam::000000000000:user/lab-developer
-```
-
-### Problem 2 — `lab-developer` had no access key
-
-The following command showed no access keys:
-
-```bash
-aws iam list-access-keys \
+aws iam create-user \
   --user-name lab-developer \
   --profile floci
 ```
 
-**Solution:** A new access key was created for the user.
+The user was successfully recreated.
 
-### Problem 3 — S3 upload unexpectedly succeeded
 
-The IAM policy did not contain `s3:PutObject`, but the S3 upload still succeeded.
+## 23.3 Adding User to Group
 
-**Solution:** The policy, user policies, group policies and bucket policy were inspected. IAM policy simulation was then used to determine the actual authorization decision.
-
-The simulator returned:
-
-```
-implicitDeny
+```bash
+aws iam add-user-to-group \
+  --user-name lab-developer \
+  --group-name developers \
+  --profile floci
 ```
 
-## 17. Conclusion
+The group membership was verified using:
 
-This practical exercise helped me gain practical knowledge on IAM users, groups, managed policies, AWS CLI profile and S3 permissions.
+```bash
+aws iam get-group \
+  --group-name developers \
+  --profile floci
+```
 
-The last configuration managed to show inheritance of group based permissions. The `lab-developer` user belonged to the `developers` group, which was associated with the `DeveloperReadOnly` policy. That policy allowed S3 listing actions, but it did not provide the `s3:PutObject` permission.
+The output confirmed:
 
-The AWS CLI identity was switched successfully from the root identity to `lab-developer`, and the developer managed to list objects in the test S3 bucket. IAM policy simulation showed that `s3:PutObject` gave an `implicitDeny`.
+```text
+GroupName: developers
+UserName: lab-developer
+```
 
-One of the most notable things about this practical exercise was the limitation of the local Floci environment. S3 upload was accepted despite IAM policy simulation denying `s3:PutObject`. It shows the importance of policy simulation and IAM inspection when working in a local AWS compatible environment.
+### Screenshot Evidence
+
+> **Screenshot 19 — Recreated developers group and lab-developer user**
+
+![alt text](../screenshots/S19-lab-developer-access-key.png)
+
+
+
+# 24. Final IAM Structure
+
+The final IAM structure established during the practical is:
+
+```text
+AWS Account
+│
+└── developers
+    │
+    ├── lab-developer
+    │
+    └── DeveloperReadOnly
+        │
+        ├── s3:ListAllMyBuckets
+        ├── s3:GetBucketLocation
+        └── s3:ListBucket
+```
+
+The user does not have a direct policy.
+
+Instead, the policy is attached to the group, and the user receives its permissions through group membership.
+
+
+# 25. Permission Summary
+
+| IAM Action             | Expected Result |
+| ---------------------- | --------------- |
+| `s3:ListAllMyBuckets`  | Allowed         |
+| `s3:GetBucketLocation` | Allowed         |
+| `s3:ListBucket`        | Allowed         |
+| `s3:PutObject`         | Implicit Deny   |
+
+The IAM policy simulation confirmed the important permission boundaries:
+
+```text
+s3:ListAllMyBuckets → allowed
+s3:ListBucket       → allowed
+s3:PutObject        → implicitDeny
+```
+
+This demonstrates the principle of least privilege because the developer user receives only the S3 permissions required by the policy.
+
+
+
+
+# 29. Troubleshooting
+
+Several issues were encountered during the practical.
+
+## 30.1 Docker Compose Empty Environment Variables
+
+Initially:
+
+```text
+invalid spec: :/app/data: empty section between colons
+```
+
+### Cause
+
+The Floci storage variables were not exported into the shell environment used by Docker Compose.
+
+### Solution
+
+```bash
+export FLOCI_STORAGE_MODE=hybrid
+export FLOCI_STORAGE_PERSISTENT_PATH=/app/data
+export FLOCI_STORAGE_HOST_PERSISTENT_PATH="$HOME/floci-data"
+```
+
+After this, `docker compose config` completed successfully.
+
+
+
+## 30.2 Container Name Conflict
+
+Docker reported:
+
+```text
+Conflict. The container name "/floci" is already in use
+```
+
+### Cause
+
+A previous Floci container named `floci` already existed.
+
+### Solution
+
+The existing container was handled and Floci was started successfully.
+
+
+## 30.3 Invalid AWS Token
+
+At one point, the AWS CLI returned:
+
+```text
+InvalidClientTokenId
+```
+
+### Cause
+
+The configured credentials did not match the currently running Floci environment.
+
+### Solution
+
+The Floci environment was restarted and the AWS CLI was reconfigured with the local test credentials.
+
+
+
+## 30.4 Floci Endpoint Not Reachable
+
+The AWS CLI initially returned:
+
+```text
+Could not connect to the endpoint URL
+```
+
+The cause was that the Floci container was stopped.
+
+The issue was identified using:
+
+```bash
+docker ps --filter name=floci
+```
+
+and:
+
+```bash
+floci doctor
+```
+
+The Floci container was restarted with:
+
+```bash
+floci start
+```
+
+After restarting, `floci doctor` confirmed:
+
+```text
+container.running ✓
+endpoint.reachable ✓
+```
+
+## 30.5 IAM Resources Missing After Restart
+
+After restarting Floci, the following returned empty results:
+
+```bash
+aws iam list-groups --profile floci
+```
+
+and:
+
+```bash
+aws iam list-users --profile floci
+```
+
+This meant that the IAM resources created previously were no longer available.
+
+The `developers` group and `lab-developer` user were recreated.
+
+
+# 31. Learning Outcomes
+
+This practical exercise was used as a chance to gain hands-on experience in working with AWS IAM and Access Control.
+
+The learning objectives were:
+
+1. Familiarity with IAM users and groups.
+2. Familiarity with how IAM groups give permission.
+3. Creation of customer-created IAM policies.
+4. Attachments of policies to IAM groups.
+5. Verification of IAM permission effectiveness.
+6. Familiarity with how explicit permission is different from implicit denial.
+7. IAM permission verification by policy simulation.
+8. Working with AWS CLI on a local AWS environment.
+9. Verification of S3 permission.
+10. Temporary access credential management.
+11. Docker and Floci environment troubleshooting.
+12. Use of Git and GitHub for practical exercise.
+
+
+# 32. Conclusion
+
+This IAM practical for DSO303 showed how IAM in AWS can be used to control the access to the AWS resources by creating users, groups, and policies.
+
+`developers` group was created and the `lab-developer` user was added to the group. Customer managed policy `DeveloperReadOnly` was created and applied to the group. The policy allowed s3 listing permissions but explicitly excluded `s3:PutObject`.
+
+Policy evaluation showed that
+
+```text
+s3:ListAllMyBuckets → allowed
+s3:ListBucket       → allowed
+s3:PutObject        → implicitDeny
+```
+
+That means that permissions were inherited via the IAM group and there were no unnecessary object upload permissions for the user.
+
+This practice session also gave some hands-on experience in Floci troubleshooting, Docker compose, AWS cli configuration, credentials management, testing S3 and Git version control usage.
+
+In general, this practical helped to better understand the role of IAM in implementation of least privilege access control.
